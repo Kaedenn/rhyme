@@ -1,0 +1,50 @@
+
+English Rhyming Dictionary
+
+This program outputs all the known perfect rhymes for the given word(s). The
+results are normally filtered according to a list of valid English words (see
+"WORD LIST" below) and then displayed to the user, grouped by the number of
+rhyming syllables (the "order" of the rhyming word).
+
+RHYMING DICTIONARY
+
+  This program uses the Carnegie Mellon University Pronouncing Dictionary
+  (called the "CMU dictionary"). This dictionary (UTF-8 encoded) is included in
+  the data directory.
+
+WORD LIST
+
+  The CMU dictionary includes words not commonly present in daily speech. To
+  rectify this, a list of valid words can be given. Only resulting rhymes
+  present in this word list (called a "dictionary" by the program) are
+  displayed. Additionally, words starting with an upper-case letter (usually
+  proper nouns) can be omitted via -n,--no-capital.
+
+  Words present in this dictionary are displayed using the same capitalization
+  as they have in the file. Therefore, with -a,--all, upper-case words in the
+  output aren't present in the word list.
+
+  If no word list is given, then everything from the CMU dictionary is included
+  in the output and all words will be upper-case.
+
+PERFECT/IMPERFECT RHYMES
+
+  By default, only perfect rhymes are displayed. Passing -R,--remove-stresses
+  removes lexical stress notation and, in turn, adds imperfect rhymes to the
+  output.
+
+  In this specific program, I'm using the term "imperfect rhymes" to refer to
+  words that share the same rhyming syllables but differ in lexical stress. For
+  example, "BRIDGE" and "CARTRIDGE" rhyme but differ in which syllable is
+  stressed.
+
+REFERENCES
+
+  This CMU dictionary was obtained via the Carnegie Mellon University website:
+    http://www.speech.cs.cmu.edu/cgi-bin/cmudict
+  and retrieved on the 7th of September 2020.
+
+  This code was loosely inspired by the node-rhyme (version 0.0.3) module by
+  James Halliday (http://substack.net)
+    https://github.com/substack/node-rhyme
+  None of their code is included in this final program.
