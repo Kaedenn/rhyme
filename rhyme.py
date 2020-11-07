@@ -1,5 +1,9 @@
 #!/usr/bin/env python3
 
+"""
+Rhyming dictionary: supporting object.
+"""
+
 import collections
 import json
 import logging
@@ -7,12 +11,20 @@ import os
 import six
 import sys
 
+import util
+
 logging.basicConfig(format="%(module)s:%(lineno)s: %(levelname)s: %(message)s",
                     level=logging.INFO)
 logger = logging.getLogger("rhyme")
 
 RHYME_FORMAT_RAW = "raw"
 RHYME_FORMAT_JSON = "json"
+
+RHYME_ORDER = {
+  1: "single",
+  2: "double",
+  3: "dactylic"
+}
 
 if six.PY3:
   unicode = str
@@ -32,7 +44,7 @@ class RhymeDict(object):
         (1, (<order-1 rhyme syllables>...))...
   all_words: set() of known English words (uppercase)
   perfect: dict()
-    key: tuple of rhyming syllables
+    key: space-delimited string of rhyming syllables
     value: list
   """
   def __init__(self,
@@ -76,11 +88,11 @@ class RhymeDict(object):
 
   def inspect_to(self, to_file=None):
     "Log to logger (if to_file is None) or to_file"
-    inspect_to("Vowels", self._vowels, to_file=to_file)
-    inspect_to("Entries", self._entries, to_file=to_file)
-    inspect_to("Table", self._table, to_file=to_file)
-    #inspect_to("All Words", self._all_words, to_file=to_file)
-    inspect_to("Perfect", self._perfect, to_file=to_file)
+    util.inspect_to("Vowels", self._vowels, to_file=to_file)
+    util.inspect_to("Entries", self._entries, to_file=to_file)
+    util.inspect_to("Table", self._table, to_file=to_file)
+    #util.inspect_to("All Words", self._all_words, to_file=to_file)
+    util.inspect_to("Perfect", self._perfect, to_file=to_file)
 
   def _build_table(self):
     "Build the internal data structure behind RhymeDict"
@@ -157,8 +169,6 @@ class RhymeDict(object):
     given word. If order is not None, then only the entries having
     rhyme_order == order are returned. Note that nothing may be returned if
     order is larger than the number of rhyming syllables in the word.
-
-    The return value is always a list (possibly empty) of pairs.
     """
     perfect_rhymes = collections.defaultdict(set)
     for variant in self.pronunciation(word):
@@ -182,56 +192,15 @@ class RhymeDict(object):
     else:
       return []
 
-def inspect_to(oname, obj, to_file=None):
-  "Inspect a named value to either the logger or a file object"
-  def write(line):
-    if to_file is None:
-      logger.info("{}: {}".format(oname, line.rstrip("\n")))
-    else:
-      to_file.write("{}: {}\n".format(oname, line.rstrip("\n")))
+  def consonant_perfect(self, word, oder=None):
+    """Return a list of (rhyme_order, rhyme_words) for all consonant-perfect
+    rhymes of the given word. If order is not None, then only the entries
+    having rhyme_order == order are returned.
 
-  if obj is None:
-    write("{}: None".format(oname))
-    return
-
-  def ellipses(o, l=80):
-    r = str(o)
-    if len(r) > l:
-      r = r[:l-3] + "..."
-    return r
-  def typename(o):
-    otype = type(o)
-    if otype == collections.defaultdict:
-      otype = dict
-    return otype.__name__ if hasattr(otype, "__name__") else str(otype)
-
-  def count_types(seq, as_str=False):
-    counts = {}
-    for item in seq:
-      tname = typename(item)
-      counts[tname] = counts.get(tname, 0) + 1
-    results = sorted(counts.items(), key=lambda ab: ab[1])
-    if as_str:
-      return ", ".join("{}:{}".format(a, b) for a, b in results)
-    return results
-
-  otype = type(obj)
-  if otype == collections.defaultdict:
-    otype = dict
-  tname = typename(obj)
-
-  if tname in ("int", "long", "str", "unicode", "bytes"):
-    write("{}[{}]: {}".format(tname, len(obj), ellipses(obj)))
-  elif otype in (tuple, list, set):
-    typecounts = count_types(obj, as_str=True)
-    write("{}[{}] of {}: {}".format(tname, len(obj), typecounts, ellipses(obj)))
-  elif otype == dict:
-    keycounts = count_types(obj.keys(), as_str=True)
-    valcounts = count_types(obj.values(), as_str=True)
-    write("{}[{}]:".format(tname, len(obj)))
-    write("  keys={}, values={}, {}".format(keycounts, valcounts, ellipses(obj)))
-  else:
-    write(ellipses(obj))
-  return
+    "Consonant-perfect" rhymes are (in this particular program) perfect rhymes
+    that also share the same syllable immediately before the rhyming syllable.
+    For example, "children" and "warden".
+    """
+    raise NotImplementedError("TODO")
 
 # vim: set ts=2 sts=2 sw=2 et:

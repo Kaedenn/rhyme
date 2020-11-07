@@ -38,7 +38,15 @@ logging.basicConfig(format="%(module)s:%(lineno)s: %(levelname)s: %(message)s",
                     level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+def first_path(*paths):
+  "Return the first path that exists or None"
+  for path in paths:
+    if path is not None and os.path.exists(path):
+      return path
+  return None
+
 def lines(path, encoding=None):
+  "Read (line-number, line) from the given path"
   open_func = lambda path: open(path, "rt")
   if encoding is not None:
     open_func = lambda path: codecs.open(path, encoding=encoding)
@@ -71,6 +79,7 @@ def parse_cmu_line(line, remove_stresses=False):
   return word, syls
 
 def load_cmu(path, encoding=None, remove_stresses=False):
+  "Load a CMU dictionary"
   results = collections.defaultdict(list)
   for lnr, line in lines(path, encoding=encoding):
     pos = "{}:{}".format(path, lnr)
@@ -82,7 +91,7 @@ def load_cmu(path, encoding=None, remove_stresses=False):
     if "  " not in line:
       logger.warning("Line missing '  ': {!r}".format(line))
       continue
-    # Skip punctuation (which is duplicated later in the dict)
+    # Skip leading punctuation lines (which are duplicated later in the dict)
     if not 'A' <= line[0] <= 'Z':
       continue
 
@@ -90,19 +99,42 @@ def load_cmu(path, encoding=None, remove_stresses=False):
     if word is None or syls is None:
       logger.error("Failed to parse CMU line {!r} (got {} {})".format(line, word, syls))
       continue
-
     results[word].append(syls)
+
   logger.debug("Read {} words from {}".format(len(results), path))
   return results
 
 def load_dict(path):
-  results = set()
-  for lnr, line in lines(path):
-    results.add(line.upper())
-  logger.debug("Read {} words from {}".format(len(results), path))
+  """Load a text file of valid words, one word per line. Returns a dict. An
+  empty dict is returned if the argument is None or if the path doesn't exist.
+  The dictionary keys are upper-cased."""
+  results = {}
+  if path is not None and os.path.exists(path):
+    for lnr, line in lines(path):
+      results[line.upper()] = line
+    logger.debug("Read {} words from {}".format(len(results), path))
   return results
 
 def construct_rhyming_dict(cmu_dict=None, cmu_encoding=None, load_from=None, **kwargs):
+  """Construct rhyme.RhymeDict instance.
+  The RhymeDict object can be constructed via one of two methods: either from
+  CMU dictionary or from JSON.
+
+  When loading with a CMU dictionary, the following arguments are used:
+    cmu_dict          Path to the CMU dictionary.
+    cmu_encoding      CMU dictionary file encoding. If specified, the CMU
+                      dictionary is loaded with the given encoding.
+    remove_stresses   When True, remove syllable stress notation. This allows
+                      rhymes across different syllable stresses.
+    vowels="AEIOU"    Rhyming syllables are those starting with one of these
+                      characters. Can be used to allow rhymes on stops,
+                      plosives, etc.
+  When loading from a JSON-encoded text file, the following arguments are used:
+    load_from         Path to a JSON-encoded text file.
+    vowels="AEIOU"    Rhyming syllables are those starting with one of these
+                      characters. Can be used to allow rhymes on stops,
+                      plosives, etc.
+  """
   vowels = kwargs.get("vowels", "AEIOU")
   remove_stresses = kwargs.get("remove_stresses", False)
   if cmu_dict is None and load_from is None:
@@ -110,29 +142,31 @@ def construct_rhyming_dict(cmu_dict=None, cmu_encoding=None, load_from=None, **k
     # fallback in case something slips by or someone calls this function
     # directly.
     raise ValueError("No dictionary to load!")
+
   if load_from is None:
     # Load manually
-    rhymes = load_cmu(cmu_dict, encoding=cmu_encoding, remove_stresses=remove_stresses)
+    rhymes = load_cmu(cmu_dict,
+        encoding=cmu_encoding,
+        remove_stresses=remove_stresses)
     robj = rhyme.RhymeDict(rhymes, vowels=vowels)
   else:
     # Load from json
-    robj = rhyme.RhymeDict(load_from, vowels=vowels, entry_format=rhyme.RHYME_FORMAT_JSON)
+    robj = rhyme.RhymeDict(load_from,
+        vowels=vowels,
+        entry_format=rhyme.RHYME_FORMAT_JSON)
   return robj
 
 def main():
   ap = argparse.ArgumentParser(
       formatter_class=argparse.RawDescriptionHelpFormatter,
       epilog="""
-If -d,--cmudict is omitted, then CMU dictionaries are searched for in the
-following locations. The first match is used.
+If -d,--cmudict is omitted, then the following paths are checked, in order:
   {cmu_paths}
 
-Words not present in the English dictionary (see below) will be printed in
-upper-case. Words present in the dictionary will be printed using the same case
-as they appear in the dictionary.
+Words not present in the English dictionary (see below) are printed in
+upper-case.
 
-If -D,--dict is omitted, then the following paths are examined. The first file
-that exists is used.
+If -D,--dict is omitted, then the following paths are checked, in order:
   {dict_paths}
 Pass either -D="", --dict="", or --no-dict to disable dictionary loading.
 
@@ -147,12 +181,18 @@ as the trailing numbers from "EH1" and "IH0" are removed. These numbers denote
 the stressed syllables with a higher number indicating more intonation than a
 lower number.
 
-Pass -R,--remove-stresses to include imperfect rhymes in the output. By
+Pass -R,--remove-stresses to include rhymes differing in syllable stress. By
 default, only perfect rhymes (ones that match syllables *and* syllable stress)
 are displayed.
-""".format(cmu_paths="\n  ".join(CMU_PATHS), dict_paths="\n  ".join(DICTIONARY_PATHS)))
+""".format(cmu_paths="\n  ".join(CMU_PATHS),
+           dict_paths="\n  ".join(DICTIONARY_PATHS)))
   ap.add_argument("word", nargs="+",
       help="list words that rhyme with %(metavar)s")
+  ap.add_argument("--profile", action="store_true", help="profile code")
+  ap.add_argument("--profsort", metavar="KEY", default="time",
+      help="sort profiler results by %(metavar)s (default: %(default)s)")
+  ap.add_argument("--profdir", metavar="DIR", default=".",
+      help="write profiler results to %(metavar)s (default: %(default)s)")
 
   ag = ap.add_argument_group("dictionary")
   ag.add_argument("-d", "--cmudict", metavar="PATH",
@@ -193,32 +233,20 @@ are displayed.
     logger.setLevel(logging.DEBUG)
     logging.getLogger("rhyme").setLevel(logging.DEBUG)
 
-  cmu_path = args.cmudict
+  cmu_path = first_path(args.cmudict, *CMU_PATHS)
   if cmu_path is None:
-    for test_path in CMU_PATHS:
-      if os.path.exists(test_path):
-        cmu_path = test_path
-        break
-  if not os.path.exists(cmu_path):
-    ap.error("{}: file not found; use -d,--cmudict".format(cmu_path))
+    ap.error("CMU dict not found; use -d,--cmudict".format(cmu_path))
 
-  dict_path = args.dict
-  if dict_path is None:
-    for test_path in DICTIONARY_PATHS:
-      if os.path.exists(test_path):
-        dict_path = test_path
-        break
-
+  dict_path = first_path(args.dict, *DICTIONARY_PATHS)
   dictionary = None
-  if dict_path is not None and os.path.exists(dict_path):
-    dictionary = {}
-    with open(dict_path, "rt") as fobj:
-      for line in fobj:
-        word = line.rstrip()
-        dictionary[word.upper()] = word
+  if dict_path is not None:
+    dictionary = load_dict(dict_path)
+
+  # The CMU dictionary is all in uppercase; do the same to simplify code
+  words = [w.upper() for w in args.word]
 
   def should_include_word(word):
-    "Return False to include the word in the final output"
+    "True if the word should be displayed, False otherwise"
     if dictionary is None:
       return True
     if args.all:
@@ -230,11 +258,18 @@ are displayed.
       return False
     return True
 
-  # The CMU dictionary is all in uppercase; do the same to simplify code
-  words = [w.upper() for w in args.word]
+  if args.profile:
+    def construct_func(*args, **kwargs):
+      import cProfile
+      with cProfile.Profile() as pr:
+        rdict = construct_rhyming_dict(*args, **kwargs)
+      pr.print_stats()
+      return rdict
+  else:
+    construct_func = construct_rhyming_dict
 
   try:
-    rhymedict = construct_rhyming_dict(
+    rhymedict = construct_func(
         cmu_dict=cmu_path,
         cmu_encoding=args.encoding,
         load_from=args.load,
@@ -249,14 +284,9 @@ are displayed.
     rhymedict.save(args.save)
 
   def write_results(word, order, rhymes):
+    "Write the word and its rhymes to stdout, wrapping long lines"
     logger.debug("{}: order={}: {}".format(word, order, rhymes))
-    kind = "order {}".format(order)
-    if order == 1:
-      kind = "single"
-    elif order == 2:
-      kind = "double"
-    elif order == 3:
-      kind = "dactylic"
+    kind = rhyme.RHYME_ORDER.get(order, "order {}".format(order))
     print("{} ({})".format(word, kind))
     line = " "*args.indent
     for i, r in enumerate(rhymes):
@@ -277,16 +307,12 @@ are displayed.
           logger.debug("Order {}: {}".format(vo, vs))
     rhymes = {}
     for rhyme_order, rhyme_words in rhymedict.perfect(word):
-      logger.debug("Discovered {} rhymes (order {}) for {}".format(len(rhyme_words), rhyme_order, word))
       words = [w for w in rhyme_words if should_include_word(w)]
       words.sort()
       if dictionary is not None:
         words = [dictionary.get(w, w) for w in words]
       rhymes[rhyme_order] = words
       write_results(word, rhyme_order, words)
-      #results = textwrap.wrap("  ".join(words), 40,
-      #    initial_indent=" "*4, subsequent_indent=" "*4)
-      #print("{} (order {})\n{}".format(word, rhyme_order, "\n".join(results)))
     print("")
 
 if __name__ == "__main__":
