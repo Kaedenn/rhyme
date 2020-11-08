@@ -4,7 +4,7 @@
 Rhyming dictionary: driver program.
 
 This program takes an English word (or several English words) and displays all
-known rhyming words. 
+known rhyming words.
 """
 
 import argparse
@@ -14,17 +14,16 @@ import logging
 import os
 import re
 import sys
-import textwrap
 
 import rhyme
 
 CMU_PATHS = (
-  "data/cmudict-0.7b.utf8",
-  "data/cmudict-0.7b",
-  "data/cmudict.0.7b",
-  "data/cmudict-0.7a.utf8",
-  "data/cmudict-0.7a",
-  "data/cmudict.0.7a"
+  f"{os.environ.get('DATA_DIR', 'data')}/cmudict-0.7b.utf8",
+  f"{os.environ.get('DATA_DIR', 'data')}/cmudict-0.7b",
+  f"{os.environ.get('DATA_DIR', 'data')}/cmudict.0.7b",
+  f"{os.environ.get('DATA_DIR', 'data')}/cmudict-0.7a.utf8",
+  f"{os.environ.get('DATA_DIR', 'data')}/cmudict-0.7a",
+  f"{os.environ.get('DATA_DIR', 'data')}/cmudict.0.7a"
 )
 
 DICTIONARY_PATHS = (
