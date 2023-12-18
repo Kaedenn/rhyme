@@ -74,7 +74,7 @@ class RhymeDict:
       data = json.load(fobj)
     self._entries = data["entries"]
     self._table = data["table"]
-    self._perfect = {int(k): v for k, v in data["perfect"].items()}
+    self._perfect = {int(key): val for key, val in data["perfect"].items()}
     logger.debug("Loaded %s entries", len(self._entries))
     logger.debug("Table: %s", len(self._table))
     for order in self._perfect:

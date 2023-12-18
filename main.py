@@ -241,7 +241,7 @@ are displayed.
     dictionary = load_dict(dict_path)
 
   # The CMU dictionary is all in uppercase; do the same to simplify code
-  words = [w.upper() for w in args.word]
+  words = [word.upper() for word in args.word]
 
   def should_include_word(word):
     "True if the word should be displayed, False otherwise"
