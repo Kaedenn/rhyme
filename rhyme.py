@@ -7,9 +7,6 @@ Rhyming dictionary: supporting object.
 import collections
 import json
 import logging
-import os
-import six
-import sys
 
 import util
 
@@ -26,10 +23,7 @@ RHYME_ORDER = {
   3: "dactylic"
 }
 
-if six.PY3:
-  unicode = str
-
-class RhymeDict(object):
+class RhymeDict:
   """Rhyming dictionary object.
 
   Internal data structure:
@@ -80,11 +74,11 @@ class RhymeDict(object):
       data = json.load(fobj)
     self._entries = data["entries"]
     self._table = data["table"]
-    self._perfect = {int(k): v for k,v in data["perfect"].items()}
-    logger.debug("Loaded {} entries".format(len(self._entries)))
-    logger.debug("Table: {}".format(len(self._table)))
+    self._perfect = {int(k): v for k, v in data["perfect"].items()}
+    logger.debug("Loaded %s entries", len(self._entries))
+    logger.debug("Table: %s", len(self._table))
     for order in self._perfect:
-      logger.debug("Perfect order {}: {}".format(order, len(self._perfect[order])))
+      logger.debug("Perfect order %s: %s", order, len(self._perfect[order]))
 
   def inspect_to(self, to_file=None):
     "Log to logger (if to_file is None) or to_file"
@@ -113,7 +107,7 @@ class RhymeDict(object):
         vsyls = vinfo["s"]
         vorders = vinfo["o"]
         for onr, vorder in vorders:
-          orders[onr].append((vorder, {"w": word, "v": vnr}))
+          orders[onr].append((vorder, {"w": word, "v": vnr, "s": vsyls}))
 
     # Build dicts, one per order, keyed by word's rhyme
     byorder = collections.defaultdict(dict)
@@ -132,37 +126,35 @@ class RhymeDict(object):
       for orhyme in byorder[onr]:
         owords = len(byorder[onr][orhyme])
         nwords += owords
-      logger.debug("Order {}: {} total rhymes; {} total words".format(onr, len(byorder[onr]), nwords))
+      logger.debug("Order %s: %s total rhymes; %s total words", onr, len(byorder[onr]), nwords)
 
     return byorder
 
   def _perfects_order(self, order):
     return self._perfect.get(order, {})
 
-  def _vowel(self, c):
-    "True if c starts with a vowel"
-    return c[0] in self._vowels
+  def _vowel(self, word):
+    "True if word starts with a vowel"
+    return word[0] in self._vowels
 
   def perfects_of(self, syls):
     "{order: rhyme_syls} for all perfect rhyme orders"
-    vowels = [i for i,j in enumerate(syls) if self._vowel(j)]
+    vowels = [idx for idx, syl in enumerate(syls) if self._vowel(syl)]
     orders = {}
-    for o, spos in enumerate(reversed(vowels)):
-      orders[o+1] = " ".join(syls[spos:])
+    for order, spos in enumerate(reversed(vowels)):
+      orders[order+1] = " ".join(syls[spos:])
     return orders
 
   def pronunciation(self, word, variant=None):
     "Word pronunciation, either all variants or the numbered one"
     if word in self._entries:
-      s = self._entries[word]
+      vstr = self._entries[word]
       if variant is None:
-        return s
-      elif variant >= 1 and variant <= len(s)+1:
-        return s[variant-1]
-      else:
-        raise ValueError("Invalid variant {}; only {} exist".format(variant, len(s)))
-    else:
-      raise ValueError("{} not a known word".format(word))
+        return vstr
+      if 1 <= variant <= len(vstr)+1:
+        return vstr[variant-1]
+      raise ValueError("Invalid variant {}; only {} exist".format(variant, len(vstr)))
+    raise ValueError("{} not a known word".format(word))
 
   def perfect(self, word, order=None):
     """Return list of (rhyme_order, rhyme_words) for all perfect rhymes of the
@@ -173,24 +165,26 @@ class RhymeDict(object):
     perfect_rhymes = collections.defaultdict(set)
     for variant in self.pronunciation(word):
       for vorder, rhyme_syls in self.perfects_of(variant).items():
-        logger.debug("{}: order {}: {}".format(variant, vorder, rhyme_syls))
+        logger.debug("%s: order %s: %s", variant, vorder, rhyme_syls)
         if vorder not in self._perfect:
-          logger.debug("No rhymes of order {} present".format(vorder))
+          logger.debug("No rhymes of order %s present", vorder)
           continue
-        logger.debug("Candidates: {}".format(len(self._perfect[vorder])))
+        logger.debug("Candidates: %s", len(self._perfect[vorder]))
         if rhyme_syls in self._perfect[vorder]:
           rwords = set(self._perfect[vorder][rhyme_syls])
           # Words do not rhyme with themselves
           rwords.discard(word.upper())
           perfect_rhymes[vorder].update(rwords)
 
-    results = {k: sorted(v) for k,v in perfect_rhymes.items() if len(v) > 0}
+    results = {
+        key: sorted(val) \
+            for key, val in perfect_rhymes.items() \
+            if len(val) > 0}
     if order is None:
       return results.items()
-    elif order in results:
+    if order in results:
       return [(order, results.values())]
-    else:
-      return []
+    return []
 
   def consonant_perfect(self, word, oder=None):
     """Return a list of (rhyme_order, rhyme_words) for all consonant-perfect

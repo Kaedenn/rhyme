@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 
+"""
+Utility classes and functions supporting rhyme.py.
+"""
+
+import collections
 import logging
-import os
-import six
-import sys
 
 import cProfile
 import pstats
@@ -12,8 +14,9 @@ logging.basicConfig(format="%(module)s:%(lineno)s: %(levelname)s: %(message)s",
                     level=logging.INFO)
 logger = logging.getLogger("rhyme-util")
 
-class ProfileCall(object):
-  def __init__(self, sort_key=None, out_path=None, out_name=None):
+class ProfileCall:
+  "Profile a block using cProfile"
+  def __init__(self, sort_key=None, out_path=None):
     self._pr = None
     self._sort = sort_key
     self._path = out_path
@@ -34,7 +37,7 @@ def inspect_to(oname, obj, to_file=None):
   "Inspect a named value to either the logger or a file object"
   def write(line):
     if to_file is None:
-      logger.info("{}: {}".format(oname, line.rstrip("\n")))
+      logger.info("%s: %s", oname, line.rstrip("\n"))
     else:
       to_file.write("{}: {}\n".format(oname, line.rstrip("\n")))
 
@@ -42,13 +45,13 @@ def inspect_to(oname, obj, to_file=None):
     write("{}: None".format(oname))
     return
 
-  def ellipses(o, l=80):
-    r = str(o)
-    if len(r) > l:
-      r = r[:l-3] + "..."
-    return r
-  def typename(o):
-    otype = type(o)
+  def ellipses(obj, length=80):
+    result = str(obj)
+    if len(result) > length:
+      result = result[:length-3] + "..."
+    return result
+  def typename(obj):
+    otype = type(obj)
     if otype == collections.defaultdict:
       otype = dict
     return otype.__name__ if hasattr(otype, "__name__") else str(otype)

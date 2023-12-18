@@ -13,7 +13,6 @@ import collections
 import logging
 import os
 import re
-import sys
 
 import rhyme
 
@@ -61,15 +60,15 @@ def parse_cmu_line(line, remove_stresses=False):
   becomes
     CARING  K EH R IH NG
   """
-  m = CMU_LINE.match(line)
-  if m is None:
+  match = CMU_LINE.match(line)
+  if match is None:
     return None, None
-  g = m.groups()
-  word, idx, syl = None, None, None
-  if len(g) == 2:
-    word, syl = g
-  elif len(g) == 3:
-    word, idx, syl = g
+  groups = match.groups()
+  word, _, syl = None, None, None
+  if len(groups) == 2:
+    word, syl = groups
+  elif len(groups) == 3:
+    word, _, syl = groups
   else:
     return word, None
   syls = syl.split()
@@ -88,7 +87,7 @@ def load_cmu(path, encoding=None, remove_stresses=False):
       continue
     # Skip invalid lines (shouldn't be any)
     if "  " not in line:
-      logger.warning("Line missing '  ': {!r}".format(line))
+      logger.warning("%s: Line missing '  ': %r", pos, line)
       continue
     # Skip leading punctuation lines (which are duplicated later in the dict)
     if not 'A' <= line[0] <= 'Z':
@@ -96,11 +95,11 @@ def load_cmu(path, encoding=None, remove_stresses=False):
 
     word, syls = parse_cmu_line(line, remove_stresses=remove_stresses)
     if word is None or syls is None:
-      logger.error("Failed to parse CMU line {!r} (got {} {})".format(line, word, syls))
+      logger.error("%s: Failed to parse CMU line %r (got %s %s)", pos, line, word, syls)
       continue
     results[word].append(syls)
 
-  logger.debug("Read {} words from {}".format(len(results), path))
+  logger.debug("Read %s words from %s", len(results), path)
   return results
 
 def load_dict(path):
@@ -109,9 +108,9 @@ def load_dict(path):
   The dictionary keys are upper-cased."""
   results = {}
   if path is not None and os.path.exists(path):
-    for lnr, line in lines(path):
+    for _, line in lines(path):
       results[line.upper()] = line
-    logger.debug("Read {} words from {}".format(len(results), path))
+    logger.debug("Read %s words from %s", len(results), path)
   return results
 
 def construct_rhyming_dict(cmu_dict=None, cmu_encoding=None, load_from=None, **kwargs):
@@ -234,7 +233,7 @@ are displayed.
 
   cmu_path = first_path(args.cmudict, *CMU_PATHS)
   if cmu_path is None:
-    ap.error("CMU dict not found; use -d,--cmudict".format(cmu_path))
+    ap.error("CMU dict not found; use -d,--cmudict")
 
   dict_path = first_path(args.dict, *DICTIONARY_PATHS)
   dictionary = None
@@ -260,9 +259,9 @@ are displayed.
   if args.profile:
     def construct_func(*args, **kwargs):
       import cProfile
-      with cProfile.Profile() as pr:
+      with cProfile.Profile() as prof:
         rdict = construct_rhyming_dict(*args, **kwargs)
-      pr.print_stats()
+      prof.print_stats()
       return rdict
   else:
     construct_func = construct_rhyming_dict
@@ -274,9 +273,9 @@ are displayed.
         load_from=args.load,
         vowels="AEIOU",
         remove_stresses=args.remove_stresses)
-  except UnicodeDecodeError as e:
+  except UnicodeDecodeError as err:
     logger.error("Use -e,--encoding to specify an encoding for the CMU dictionary")
-    raise e
+    raise err
   if args.inspect:
     rhymedict.inspect_to(None)
   if args.save is not None:
@@ -284,32 +283,32 @@ are displayed.
 
   def write_results(word, order, rhymes):
     "Write the word and its rhymes to stdout, wrapping long lines"
-    logger.debug("{}: order={}: {}".format(word, order, rhymes))
+    logger.debug("%s: order=%s: %s", word, order, rhymes)
     kind = rhyme.RHYME_ORDER.get(order, "order {}".format(order))
     print("{} ({})".format(word, kind))
     line = " "*args.indent
-    for i, r in enumerate(rhymes):
-      if args.wrap != -1 and len(line) + len(args.sep) + len(r) > args.wrap:
+    for idx, rword in enumerate(rhymes):
+      if args.wrap != -1 and len(line) + len(args.sep) + len(rword) > args.wrap:
         print(line)
         line = " "*args.indent
-      line += r
-      if i+1 < len(rhymes):
+      line += rword
+      if idx+1 < len(rhymes):
         line += args.sep
     if line != " "*args.indent:
       print(line)
 
   for word in map(str.upper, args.word):
     if args.verbose:
-      for vp in rhymedict.pronunciation(word):
-        logger.debug("{}: {}".format(word, vp))
-        for vo, vs in rhymedict.perfects_of(vp).items():
-          logger.debug("Order {}: {}".format(vo, vs))
+      for vperf in rhymedict.pronunciation(word):
+        logger.debug("%s: %s", word, vperf)
+        for vord, vstr in rhymedict.perfects_of(vperf).items():
+          logger.debug("Order %s: %s", vord, vstr)
     rhymes = {}
     for rhyme_order, rhyme_words in rhymedict.perfect(word):
-      words = [w for w in rhyme_words if should_include_word(w)]
+      words = [word for word in rhyme_words if should_include_word(word)]
       words.sort()
       if dictionary is not None:
-        words = [dictionary.get(w, w) for w in words]
+        words = [dictionary.get(word, word) for word in words]
       rhymes[rhyme_order] = words
       write_results(word, rhyme_order, words)
     print("")
